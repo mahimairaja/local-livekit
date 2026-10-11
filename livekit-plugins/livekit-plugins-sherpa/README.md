@@ -4,7 +4,7 @@ Offline speech-to-text and text-to-speech for [LiveKit Agents](https://github.co
 
 ## STT
 
-A true streaming recognizer (zipformer transducer). It emits interim transcripts while the user speaks and a final transcript with word timings once they pause.
+A true streaming recognizer (zipformer transducer, about 70M parameters). It emits interim transcripts while the user speaks and a final transcript with word timings once they pause.
 
 ```python
 from livekit.plugins import sherpa
@@ -20,7 +20,7 @@ uv run -m livekit.agents download-files
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `model` | `zipformer-en-2023-06-26` | Built-in model, pinned to a Hugging Face commit |
+| `model` | `zipformer-en-2023-06-26` | Built-in model, pinned to a Hugging Face commit. `zipformer-en-20M-2023-02-17` is smaller but drops the first words of an utterance on 48 kHz room audio |
 | `endpoint_silence` | `0.5` | Seconds of trailing silence that end an utterance |
 | `num_threads` | `2` | ONNX Runtime threads |
 | `recognizer` | `None` | Bring any `sherpa_onnx.OnlineRecognizer` (endpoint detection enabled) |
@@ -33,7 +33,9 @@ The default model is wideband English. It does not transcribe 8 kHz telephone au
 
 ## TTS
 
-[Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) v1.0 (int8), 24 kHz. The phonemizer (espeak-ng data plus an English lexicon) ships with the model, so there is no system dependency.
+[Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) v1.0 (int8), 24 kHz.
+
+Phonemes come from [misaki](https://github.com/hexgrad/misaki), Kokoro's own G2P: the model's `lexicon-us-en.txt` is built from misaki's `us_gold` and `us_silver` dictionaries ([sherpa-onnx script](https://github.com/k2-fsa/sherpa-onnx/blob/master/scripts/kokoro/v1.0/generate_lexicon_en.py)). Words outside the lexicon fall back to espeak-ng, as in misaki itself. Both ship with the model and run inside sherpa-onnx, so there is no Python G2P and no system dependency.
 
 ```python
 session = AgentSession(tts=sherpa.TTS(voice="af_heart"), ...)
