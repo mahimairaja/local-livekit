@@ -76,7 +76,9 @@ def build_session(models: Models) -> AgentSession:
         llm=models.llm,
         tts=models.tts,
         turn_handling=TurnHandlingOptions(
+            # Both pinned to local models; the defaults try LiveKit Inference first.
             turn_detection=inference.TurnDetector(version="v1-mini"),
+            interruption={"mode": "vad"},
         ),
     )
 
