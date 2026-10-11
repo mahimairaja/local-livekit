@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "livekit-plugins-rnnoise"
+dynamic = ["version"]
+description = "Self-hosted RNNoise noise cancellation for LiveKit Agents"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+# Plugin written by Apoorva Verma in livekit/agents#6477, vendored here unchanged in behaviour.
+authors = [{ name = "Apoorva Verma" }]
+keywords = ["voice", "ai", "realtime", "audio", "livekit", "noise-cancellation", "rnnoise", "self-hosted"]
+dependencies = [
+    "livekit-agents==1.8.6",
+    "numpy==2.5.4",
+    # Only its bundled native librnnoise is loaded, via ctypes. The Python package is never imported.
+    "pyrnnoise==0.4.5",
+]
+
+[tool.hatch.version]
+path = "livekit/plugins/rnnoise/version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["livekit"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/livekit"]
