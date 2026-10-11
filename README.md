@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/hero.gif" alt="local-livekit: a LiveKit voice agent talking with the Wi-Fi off" width="760">
+  <img src="docs/assets/hero.gif" alt="local-livekit: a LiveKit voice agent talking with the Wi-Fi off" width="100%">
 </p>
 
 <h3 align="center">A LiveKit voice agent that runs with the Wi-Fi off.</h3>
@@ -16,7 +16,7 @@ Each piece is a real LiveKit plugin, laid out like `livekit/agents`, so it can m
 The upstream PRs take months to review. This repo shows them working together today.
 
 <p align="center">
-  <img src="docs/assets/pipeline.png" alt="Mic, RNNoise, sherpa-onnx STT, local turn detector, SmolLM2, Kokoro TTS, speaker" width="760">
+  <img src="docs/assets/pipeline.png" alt="What's inside: main.py on livekit-plugins-sherpa, livekit-plugins-hf, livekit-plugins-rnnoise and livekit-agents" width="100%">
 </p>
 
 ## Quickstart
@@ -43,12 +43,12 @@ Smallest models that work: the point is a loop that runs anywhere. Swap the LLM 
 
 ## Measured
 
-On an M-series Mac mini, CPU only, voice in and voice out:
+On an M-series Mac mini, CPU only (no GPU), voice in and voice out:
 
 | | |
 | --- | --- |
-| End to end, per turn | ~3.4 s |
-| LLM first token | 65 ms |
+| Voice to voice, per turn | ~3.4 s |
+| LLM first token | ~200 ms |
 | Models on disk | 70M + 82M + 135M |
 
 Most of the turn is Kokoro synthesizing the first sentence (~2.2 s). That is the next thing to cut.
