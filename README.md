@@ -25,6 +25,16 @@ uv run python main.py console   # talk through your mic and speakers
 
 To use it from a browser instead, run a local server (`livekit-server --dev`) and `uv run python main.py dev` with `LIVEKIT_URL=ws://localhost:7880 LIVEKIT_API_KEY=devkey LIVEKIT_API_SECRET=secret`.
 
+## Troubleshooting
+
+**The agent greets you but never hears you.** If the log says `microphone input is exact digital silence`, macOS is denying your terminal the microphone and handing it zeros. Enable your terminal app in System Settings > Privacy & Security > Microphone, then quit and reopen it. To check outside the agent:
+
+```sh
+uv run python -c "import sounddevice as sd, numpy as np; x=sd.rec(5*48000, samplerate=48000, channels=1, dtype='int16'); sd.wait(); print('RMS', int(np.sqrt((x.astype(float)**2).mean())))"
+```
+
+`RMS 0` is a denied permission. Normal speech reads in the hundreds.
+
 ## Develop
 
 ```sh

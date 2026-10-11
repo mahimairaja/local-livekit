@@ -8,9 +8,11 @@ cancellation: RNNoise.
 Turn detection: LiveKit's v1-mini audio model, which runs locally on CPU.
 """
 
+import logging
 import os
 from dataclasses import dataclass
 
+from livekit import rtc
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -22,6 +24,7 @@ from livekit.agents import (
     inference,
     room_io,
 )
+from livekit.agents.voice.io import AudioInput
 from livekit.plugins import hf, rnnoise, sherpa
 
 # The smallest models that hold a conversation: this repo shows the pipeline running, not
@@ -29,6 +32,8 @@ from livekit.plugins import hf, rnnoise, sherpa
 LLM_MODEL = os.environ.get("LLM_MODEL", "HuggingFaceTB/SmolLM2-135M-Instruct")
 # Keep in sync with the LIVEKIT_HF_MODELS pin in README.md (download-files).
 LLM_REVISION = os.environ.get("LLM_REVISION", "12fd25f77366fa6b3b4b768ec3050bf629380bac")
+
+logger = logging.getLogger("local-agent")
 
 INSTRUCTIONS = (
     "You are a friendly voice assistant that runs fully offline on the user's computer. "
@@ -69,6 +74,34 @@ def prewarm(proc: JobProcess) -> None:
 
 server = AgentServer(setup_fnc=prewarm)
 
+SILENCE_CHECK_S = 2.0
+
+
+class MicSilenceGuard(AudioInput):
+    """Passes audio through; warns once if the first seconds are exact digital zeros.
+
+    A real microphone always has a noise floor. All-zero samples mean the OS gave the
+    process silence instead, which on macOS is what a denied microphone permission does.
+    """
+
+    def __init__(self, source: AudioInput) -> None:
+        super().__init__(label="MicSilenceGuard", source=source)
+        self._checked_s = 0.0
+        self._heard_signal = False
+
+    async def __anext__(self) -> rtc.AudioFrame:
+        frame = await super().__anext__()
+        if self._checked_s < SILENCE_CHECK_S and not self._heard_signal:
+            self._heard_signal = any(frame.data)
+            self._checked_s += frame.duration
+            if self._checked_s >= SILENCE_CHECK_S and not self._heard_signal:
+                logger.warning(
+                    "microphone input is exact digital silence; on macOS this usually means "
+                    "the terminal app has no microphone permission. Enable it in System "
+                    "Settings > Privacy & Security > Microphone, then restart the terminal."
+                )
+        return frame
+
 
 def build_session(models: Models) -> AgentSession:
     return AgentSession(
@@ -93,6 +126,8 @@ async def entrypoint(ctx: JobContext) -> None:
             audio_input=room_io.AudioInputOptions(noise_cancellation=rnnoise.RNNoise()),
         ),
     )
+    if session.input.audio is not None:
+        session.input.audio = MicSilenceGuard(session.input.audio)
 
 
 if __name__ == "__main__":
