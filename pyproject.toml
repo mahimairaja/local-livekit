@@ -1,0 +1,62 @@
+[project]
+name = "local-livekit"
+version = "0.1.0"
+description = "LiveKit Agents running fully offline: local STT, TTS, LLM and noise cancellation"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "livekit-agents==1.8.6",
+]
+
+[dependency-groups]
+dev = [
+    "mypy==2.4.0",
+    "pre-commit==4.6.2",
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "ruff==0.17.0",
+]
+
+[tool.uv]
+package = false
+required-version = ">=0.8.15"
+
+[tool.uv.workspace]
+members = ["livekit-plugins/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+    "RUF006", # asyncio-dangling-task
+]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+known-first-party = ["livekit"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+strict = true
+disallow_any_generics = false
+plugins = ["pydantic.mypy"]
+explicit_package_bases = true
+namespace_packages = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = ["--import-mode=importlib"]

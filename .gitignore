@@ -218,3 +218,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Model files downloaded by Plugin.download_files()
+*.onnx
+models/
