@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "livekit-plugins-hf"
+dynamic = ["version"]
+description = "Run Hugging Face chat models locally in LiveKit Agents"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+# From livekit/agents#7731 (Mahimai Raja). Source commit and update steps: README.md.
+authors = [{ name = "Mahimai Raja", email = "mahimairaja3@gmail.com" }]
+keywords = ["voice", "ai", "realtime", "livekit", "llm", "huggingface", "transformers", "offline"]
+dependencies = [
+    "livekit-agents==1.8.6",
+    "transformers==5.19.0",
+    "huggingface-hub==2.2.0",
+    "torch==2.14.1",
+    "accelerate==1.15.0",
+]
+
+[tool.hatch.version]
+path = "livekit/plugins/hf/version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["livekit"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/livekit"]

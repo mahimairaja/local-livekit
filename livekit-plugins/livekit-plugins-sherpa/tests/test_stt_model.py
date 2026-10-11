@@ -1,12 +1,15 @@
-"""The STT against the real sherpa-onnx model, on the LibriSpeech clips shipped with it.
+"""The default STT model, on the LibriSpeech clips shipped with it.
 
-Needs the model files once (downloaded on first run); skipped when offline without them.
+Transcripts are compared by character error rate, so a swap to another small model does not
+rewrite every assertion. Needs the model files once (downloaded on first run); skipped when
+offline without them.
 """
 
 from __future__ import annotations
 
 import wave
 
+import jiwer
 import numpy as np
 import pytest
 from huggingface_hub import hf_hub_download
@@ -14,9 +17,8 @@ from huggingface_hub import hf_hub_download
 from livekit import rtc
 from livekit.agents import stt, utils
 from livekit.plugins import sherpa
-from livekit.plugins.sherpa.models import STT_MODELS, download_model
+from livekit.plugins.sherpa.models import STT_MODELS, STTModels, TransducerModel, download_model
 
-MODEL = STT_MODELS["zipformer-en-2023-06-26"]
 # Input as it arrives from a LiveKit room: 48 kHz, 10 ms frames. The plugin resamples to 16 kHz.
 ROOM_RATE = 48000
 
@@ -28,20 +30,29 @@ TRANSCRIPTS = {
     "FOR EVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN",
 }
 # test_wavs/8k.wav is left out on purpose: band-limited telephone audio, cleanly upsampled,
-# decodes to nothing with this wideband model. Telephony needs an 8 kHz model.
+# decodes to nothing with these wideband models. Telephony needs an 8 kHz model.
+MAX_CER = 0.1
+
+
+MODEL: STTModels = "zipformer-en-2023-06-26"
 
 
 @pytest.fixture(scope="module")
 def engine() -> sherpa.STT:
     try:
-        download_model(MODEL)
+        download_model(STT_MODELS[MODEL])
     except Exception as e:
         pytest.skip(f"sherpa model not available: {e}")
-    return sherpa.STT()
+    return sherpa.STT(model=MODEL)
+
+
+def _close(expected: str, heard: str) -> bool:
+    return bool(jiwer.cer(expected, heard) <= MAX_CER)
 
 
 def _clip(name: str) -> rtc.AudioFrame:
-    path = hf_hub_download(MODEL.repo_id, f"test_wavs/{name}", revision=MODEL.revision)
+    model: TransducerModel = STT_MODELS[MODEL]
+    path = hf_hub_download(model.repo_id, f"test_wavs/{name}", revision=model.revision)
     with wave.open(path) as w:
         pcm = w.readframes(w.getnframes())
         frame = rtc.AudioFrame(pcm, w.getframerate(), w.getnchannels(), w.getnframes())
@@ -83,7 +94,7 @@ async def test_streams_an_utterance_into_one_final_transcript(engine: sherpa.STT
     assert any(ev.type == stt.SpeechEventType.INTERIM_TRANSCRIPT for ev in events)
 
     final = next(ev for ev in events if ev.type == stt.SpeechEventType.FINAL_TRANSCRIPT)
-    assert final.alternatives[0].text == TRANSCRIPTS["0.wav"]
+    assert _close(TRANSCRIPTS["0.wav"], final.alternatives[0].text)
 
 
 async def test_word_timings_follow_the_audio(engine: sherpa.STT) -> None:
@@ -94,7 +105,7 @@ async def test_word_timings_follow_the_audio(engine: sherpa.STT) -> None:
     data = next(ev for ev in events if ev.type == stt.SpeechEventType.FINAL_TRANSCRIPT)
     words = data.alternatives[0].words
     assert words is not None
-    assert words == TRANSCRIPTS["0.wav"].split()
+    assert words == data.alternatives[0].text.split()
     starts = [w.start_time for w in words if utils.is_given(w.start_time)]
     assert len(starts) == len(words)
     assert starts == sorted(starts)
@@ -103,18 +114,20 @@ async def test_word_timings_follow_the_audio(engine: sherpa.STT) -> None:
 
 
 async def test_silence_between_utterances_splits_them(engine: sherpa.STT) -> None:
-    events = await _stream(engine, [_clip("0.wav"), _silence(1.0), _clip("1.wav"), _silence(1.0)])
+    events = await _stream(
+        engine, [_silence(0.5), _clip("0.wav"), _silence(1.0), _clip("1.wav"), _silence(1.0)]
+    )
 
     finals = [ev for ev in events if ev.type == stt.SpeechEventType.FINAL_TRANSCRIPT]
-    assert finals[0].alternatives[0].text == TRANSCRIPTS["0.wav"]
+    assert _close(TRANSCRIPTS["0.wav"], finals[0].alternatives[0].text)
     # 1.wav has pauses of its own, so it may arrive as several finals.
-    assert " ".join(ev.alternatives[0].text for ev in finals[1:]) == TRANSCRIPTS["1.wav"]
+    assert _close(TRANSCRIPTS["1.wav"], " ".join(ev.alternatives[0].text for ev in finals[1:]))
     second_start = finals[1].alternatives[0].start_time
-    assert second_start > _clip("0.wav").duration + 1.0
+    assert second_start > 0.5 + _clip("0.wav").duration + 1.0
 
 
 async def test_recognize_transcribes_a_whole_buffer(engine: sherpa.STT) -> None:
-    event = await engine.recognize([_clip("0.wav")])
+    event = await engine.recognize([_silence(0.5), _clip("0.wav")])
 
     assert event.type == stt.SpeechEventType.FINAL_TRANSCRIPT
-    assert event.alternatives[0].text == TRANSCRIPTS["0.wav"]
+    assert _close(TRANSCRIPTS["0.wav"], event.alternatives[0].text)

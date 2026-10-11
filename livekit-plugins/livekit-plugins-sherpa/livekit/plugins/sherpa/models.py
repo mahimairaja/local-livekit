@@ -6,7 +6,7 @@ from typing import Literal
 from huggingface_hub import snapshot_download
 from huggingface_hub.errors import LocalEntryNotFoundError
 
-STTModels = Literal["zipformer-en-2023-06-26"]
+STTModels = Literal["zipformer-en-2023-06-26", "zipformer-en-20M-2023-02-17"]
 TTSModels = Literal["kokoro-int8-multi-lang-v1_0"]
 
 # Speaker ids of the Kokoro v1.0 voice table, in order (see the model's `speaker2id` metadata).
@@ -64,10 +64,18 @@ def _transducer(repo_id: str, revision: str, suffix: str) -> TransducerModel:
 
 
 STT_MODELS: dict[STTModels, TransducerModel] = {
+    # Default. ~70M params, 80 MB int8.
     "zipformer-en-2023-06-26": _transducer(
         "csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-26",
         "672fbf1b30579d6585301139bb363f42a0ad4a24",
         "epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+    ),
+    # ~20M params, 42 MB int8. Drops the first words of an utterance when the audio was
+    # resampled from 48 kHz (every LiveKit room), so it is not the default.
+    "zipformer-en-20M-2023-02-17": _transducer(
+        "csukuangfj/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17",
+        "d42f2d9f7ca24806fb667456a18a9f1b60f70d16",
+        "epoch-99-avg-1.int8.onnx",
     ),
 }
 
@@ -106,6 +114,6 @@ def local_model_dir(model: HubModel) -> str:
     except LocalEntryNotFoundError as e:
         raise RuntimeError(
             f"sherpa model {model.repo_id} is not downloaded. "
-            "Run `python main.py download-files` once while online."
+            "Run `uv run -m livekit.agents download-files` once while online."
         ) from e
     return path

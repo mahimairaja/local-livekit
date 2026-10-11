@@ -7,6 +7,8 @@ license = "MIT"
 requires-python = ">=3.12,<3.15"
 dependencies = [
     "livekit-agents==1.8.6",
+    "livekit-plugins-hf",
+    "livekit-plugins-rnnoise",
     "livekit-plugins-sherpa",
 ]
 
@@ -25,6 +27,8 @@ package = false
 required-version = ">=0.8.15"
 
 [tool.uv.sources]
+livekit-plugins-hf = { workspace = true }
+livekit-plugins-rnnoise = { workspace = true }
 livekit-plugins-sherpa = { workspace = true }
 
 [tool.uv.workspace]
@@ -60,7 +64,11 @@ disallow_any_generics = false
 plugins = ["pydantic.mypy"]
 explicit_package_bases = true
 # One entry per plugin, so `livekit.plugins.<name>` resolves from each workspace member.
-mypy_path = ["$MYPY_CONFIG_FILE_DIR/livekit-plugins/livekit-plugins-sherpa"]
+mypy_path = [
+    "$MYPY_CONFIG_FILE_DIR/livekit-plugins/livekit-plugins-hf",
+    "$MYPY_CONFIG_FILE_DIR/livekit-plugins/livekit-plugins-rnnoise",
+    "$MYPY_CONFIG_FILE_DIR/livekit-plugins/livekit-plugins-sherpa",
+]
 namespace_packages = true
 
 # Compiled extension without stubs. The plugin types it through Protocols in stt.py.
@@ -72,3 +80,4 @@ ignore_missing_imports = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = ["--import-mode=importlib"]
+pythonpath = ["."]
