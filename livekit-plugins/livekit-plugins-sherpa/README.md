@@ -15,7 +15,7 @@ session = AgentSession(stt=sherpa.STT(), ...)
 Fetch the model once while online:
 
 ```sh
-python main.py download-files
+uv run -m livekit.agents download-files
 ```
 
 | Option | Default | Meaning |

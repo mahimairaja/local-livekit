@@ -106,6 +106,6 @@ def local_model_dir(model: HubModel) -> str:
     except LocalEntryNotFoundError as e:
         raise RuntimeError(
             f"sherpa model {model.repo_id} is not downloaded. "
-            "Run `python main.py download-files` once while online."
+            "Run `uv run -m livekit.agents download-files` once while online."
         ) from e
     return path
