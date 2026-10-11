@@ -41,6 +41,8 @@ uv run python main.py console               # now turn the Wi-Fi off and talk
 
 Smallest models that work: the point is a loop that runs anywhere. Swap the LLM with `LLM_MODEL`, e.g. `Qwen/Qwen2.5-0.5B-Instruct`.
 
+`livekit-plugins-sherpa` is not tied to these models. It runs the sherpa-onnx family: streaming STT (`sherpa.STT`), batch STT such as Whisper, Moonshine, SenseVoice or Parakeet (`sherpa.BatchSTT`), and TTS such as Kokoro, Kitten or Piper (`sherpa.TTS`). Built in and tested: 2 streaming STT, 2 batch STT and 3 TTS models. See the [plugin README](livekit-plugins/livekit-plugins-sherpa/README.md).
+
 ## Measured
 
 On an M-series Mac mini, CPU only (no GPU), voice in and voice out:
