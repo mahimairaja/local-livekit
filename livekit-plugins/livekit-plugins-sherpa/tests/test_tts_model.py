@@ -68,3 +68,23 @@ async def test_stream_adapter_speaks_llm_tokens(voice: sherpa.TTS) -> None:
     assert np.abs(np.frombuffer(audio.data, dtype=np.int16)).max() > 1000
     heard = await _transcribe(audio)
     assert jiwer.cer("YOUR TABLE IS BOOKED SEE YOU AT SEVEN", heard) <= MAX_CER, heard
+
+
+@pytest.mark.parametrize(
+    ("model", "voice_name", "rate"),
+    [("kitten-nano-en-v0_2", "expr-voice-2-f", 24000), ("piper-en_US-amy-low", "amy", 16000)],
+)
+async def test_other_sherpa_voices_are_understood(
+    voice: sherpa.TTS, model: sherpa.TTSModels, voice_name: str, rate: int
+) -> None:
+    try:
+        download_model(TTS_MODELS[model])
+    except Exception as e:
+        pytest.skip(f"{model} not available: {e}")
+    other = sherpa.TTS(model=model, voice=voice_name)
+
+    audio = await other.synthesize("The weather in Toronto is sunny today.").collect()
+
+    assert audio.sample_rate == rate
+    heard = await _transcribe(audio)
+    assert jiwer.cer("THE WEATHER IN TORONTO IS SUNNY TODAY", heard) <= MAX_CER, heard
