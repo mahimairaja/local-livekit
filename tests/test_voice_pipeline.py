@@ -101,7 +101,12 @@ async def test_spoken_question_gets_a_spoken_answer(models: Models) -> None:
             replies.append(ev.item.text_content or "")
 
     await session.start(LocalAgent())
-    await asyncio.sleep(3)  # let the greeting play out
+    # Wait for the greeting to be spoken, not a fixed time: first runs warm the models up.
+    for _ in range(200):
+        if replies and speaker.frames:
+            break
+        await asyncio.sleep(0.1)
+    await asyncio.sleep(1.0)
     greeting_audio = sum(f.duration for f in speaker.frames)
 
     await mic.silence(0.5)
