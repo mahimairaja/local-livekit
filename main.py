@@ -51,7 +51,8 @@ class LocalAgent(Agent):
 
 
 def build_llm() -> hf.LLM:
-    return hf.LLM(model=LLM_MODEL, revision=LLM_REVISION, max_new_tokens=80)
+    # CPU on purpose: the point is a loop that needs no GPU anywhere.
+    return hf.LLM(model=LLM_MODEL, revision=LLM_REVISION, max_new_tokens=80, device="cpu")
 
 
 @dataclass
