@@ -7,7 +7,7 @@ license = "MIT"
 requires-python = ">=3.12,<3.15"
 dependencies = [
     "livekit-agents==1.8.6",
-    "livekit-plugins-openai==1.8.6",
+    "livekit-plugins-hf",
     "livekit-plugins-rnnoise",
     "livekit-plugins-sherpa",
 ]
@@ -27,6 +27,7 @@ package = false
 required-version = ">=0.8.15"
 
 [tool.uv.sources]
+livekit-plugins-hf = { workspace = true }
 livekit-plugins-rnnoise = { workspace = true }
 livekit-plugins-sherpa = { workspace = true }
 
@@ -64,6 +65,7 @@ plugins = ["pydantic.mypy"]
 explicit_package_bases = true
 # One entry per plugin, so `livekit.plugins.<name>` resolves from each workspace member.
 mypy_path = [
+    "$MYPY_CONFIG_FILE_DIR/livekit-plugins/livekit-plugins-hf",
     "$MYPY_CONFIG_FILE_DIR/livekit-plugins/livekit-plugins-rnnoise",
     "$MYPY_CONFIG_FILE_DIR/livekit-plugins/livekit-plugins-sherpa",
 ]

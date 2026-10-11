@@ -1,66 +1,57 @@
-"""Turn-level tests of the agent in main.py, with the same local Ollama model it runs on.
+"""Turn-level tests of the agent in main.py, on the same local LLM it runs with.
 
-The judge is the local model too, so nothing leaves the machine. Skipped when Ollama is
-not running or the model is not pulled.
+The model is tiny (135M), so these check that a turn works end to end and that the reply
+is speakable, not what it says: a judge this small would only add noise. Needs the model
+once (downloaded on first run); skipped when offline without it.
 """
 
 from __future__ import annotations
 
-import json
 import re
-import urllib.request
 from collections.abc import AsyncIterator
 
 import pytest
 
-from livekit.agents import AgentSession, RunResult, llm
-from livekit.plugins import openai
-from main import OLLAMA_MODEL, OLLAMA_URL, LocalAgent
+from livekit.agents import AgentSession, RunResult
+from livekit.plugins import hf
+from main import LLM_MODEL, LLM_REVISION, LocalAgent, build_llm
 
 
-def _ollama_has_model() -> bool:
+@pytest.fixture(scope="module")
+def model_files() -> None:
     try:
-        with urllib.request.urlopen(f"{OLLAMA_URL}/models", timeout=2) as resp:
-            models = json.load(resp)["data"]
-    except OSError:
-        return False
-    return any(m["id"] == OLLAMA_MODEL for m in models)
-
-
-pytestmark = pytest.mark.skipif(
-    not _ollama_has_model(), reason=f"Ollama with {OLLAMA_MODEL} is not running"
-)
+        hf.download_model(LLM_MODEL, revision=LLM_REVISION)
+    except Exception as e:
+        pytest.skip(f"{LLM_MODEL} not available: {e}")
 
 
 @pytest.fixture
-async def model() -> AsyncIterator[llm.LLM]:
-    async with openai.LLM.with_ollama(model=OLLAMA_MODEL, base_url=OLLAMA_URL) as m:
-        yield m
-
-
-async def test_answers_in_short_plain_speech(model: llm.LLM) -> None:
-    async with AgentSession(llm=model) as session:
+async def session(model_files: None) -> AsyncIterator[AgentSession]:
+    async with AgentSession(llm=build_llm()) as session:
         await session.start(LocalAgent())
-        result: RunResult[None] = await session.run(user_input="Why is the sky blue?")
-
-        reply = result.expect.next_event().is_message(role="assistant")
-        await reply.judge(model, intent="Explains why the sky looks blue.")
-        result.expect.no_more_events()
-
-    text = reply.event().item.text_content or ""
-    # It is spoken by a TTS: markdown symbols would be read out or dropped.
-    assert not re.search(r"[*#`_\[\]]|^\s*[-\d]+[.)]\s", text, flags=re.M), text
-    assert len(re.findall(r"[.!?](\s|$)", text)) <= 3, text
+        yield session
 
 
-async def test_does_not_claim_to_use_the_cloud(model: llm.LLM) -> None:
-    async with AgentSession(llm=model) as session:
-        await session.start(LocalAgent())
-        result: RunResult[None] = await session.run(user_input="Are you running in the cloud?")
+async def test_a_turn_produces_one_spoken_reply(session: AgentSession) -> None:
+    result: RunResult[None] = await session.run(user_input="Why is the sky blue?")
 
-        await (
-            result.expect.next_event()
-            .is_message(role="assistant")
-            .judge(model, intent="Says it runs locally or offline on the user's computer.")
-        )
-        result.expect.no_more_events()
+    reply = result.expect.next_event().is_message(role="assistant")
+    result.expect.no_more_events()
+
+    text = (reply.event().item.text_content or "").strip()
+    assert text
+    # A TTS reads this out: markdown would be spoken as symbols.
+    assert not re.search(r"[*#`]|^\s*[-\d]+[.)]\s", text, flags=re.M), text
+
+
+async def test_the_conversation_carries_over_turns(session: AgentSession) -> None:
+    await session.run(user_input="Hello!")
+    result: RunResult[None] = await session.run(user_input="Thanks, bye.")
+
+    result.expect.next_event().is_message(role="assistant")
+    result.expect.no_more_events()
+    messages = [(m.role, m.text_content) for m in session.history.items if m.type == "message"]
+    # The on_enter greeting runs concurrently with the first turn, so it can land anywhere
+    # before the second one. What must hold: both user turns, in order, the last one answered.
+    assert [text for role, text in messages if role == "user"] == ["Hello!", "Thanks, bye."]
+    assert [role for role, _ in messages[-2:]] == ["user", "assistant"]

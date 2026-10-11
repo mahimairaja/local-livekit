@@ -11,7 +11,7 @@ LiveKit Agents running fully offline. Showcase for local STT, TTS, LLM and noise
 ## Stack
 
 - STT and TTS: sherpa-onnx (ONNX only, no torch). Kokoro is the default TTS voice.
-- LLM: Ollama through `openai.LLM.with_ollama` from livekit-plugins-openai.
+- LLM: `livekit-plugins-hf` (transformers, in-process). Smallest models that work: this repo proves the pipeline runs.
 - Models are fetched with `Plugin.download_files()`, as silero and turn-detector do. Never commit model files.
 
 ## Rules
