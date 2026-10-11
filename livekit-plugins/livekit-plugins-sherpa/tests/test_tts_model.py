@@ -1,0 +1,70 @@
+"""Kokoro through sherpa-onnx, checked by ear: the offline STT has to hear what it said.
+
+The STT is not perfect on synthetic speech ("TODAY" can come back as "TO DAY"), so the
+check is a character error rate, not an exact match. It catches silence, noise, a wrong
+sample rate or a wrong voice table, which is what this test is for.
+
+Needs the model files once (downloaded on first run); skipped when offline without them.
+"""
+
+from __future__ import annotations
+
+import jiwer
+import numpy as np
+import pytest
+
+from livekit import rtc
+from livekit.agents import tts, utils
+from livekit.plugins import sherpa
+from livekit.plugins.sherpa.models import STT_MODELS, TTS_MODELS, download_model
+
+
+@pytest.fixture(scope="module")
+def voice() -> sherpa.TTS:
+    try:
+        download_model(TTS_MODELS["kokoro-int8-multi-lang-v1_0"])
+        download_model(STT_MODELS["zipformer-en-2023-06-26"])
+    except Exception as e:
+        pytest.skip(f"sherpa models not available: {e}")
+    return sherpa.TTS()
+
+
+MAX_CER = 0.2
+
+
+async def _transcribe(audio: rtc.AudioFrame) -> str:
+    lead = np.zeros(audio.sample_rate // 2, dtype=np.int16).tobytes()
+    stream = sherpa.STT().stream()
+    for frame in utils.audio.AudioByteStream(
+        audio.sample_rate, 1, samples_per_channel=audio.sample_rate // 100
+    ).push(lead + audio.data):
+        stream.push_frame(frame)
+    stream.end_input()
+    finals = [ev.alternatives[0].text async for ev in stream if ev.type == "final_transcript"]
+    await stream.aclose()
+    return " ".join(finals)
+
+
+async def test_synthesized_speech_is_understood(voice: sherpa.TTS) -> None:
+    audio = await voice.synthesize("The weather in Toronto is sunny today.").collect()
+
+    assert audio.sample_rate == 24000
+    assert 1.0 < audio.duration < 6.0
+    heard = await _transcribe(audio)
+    assert jiwer.cer("THE WEATHER IN TORONTO IS SUNNY TODAY", heard) <= MAX_CER, heard
+
+
+async def test_stream_adapter_speaks_llm_tokens(voice: sherpa.TTS) -> None:
+    # How AgentSession drives a non-streaming TTS: tokens in, sentences synthesized one by one.
+    adapter = tts.StreamAdapter(tts=voice)
+    stream = adapter.stream()
+    for token in ["Your table ", "is booked. ", "See you ", "at seven."]:
+        stream.push_text(token)
+    stream.end_input()
+    frames = [ev.frame async for ev in stream]
+    await stream.aclose()
+
+    audio = rtc.combine_audio_frames(frames)
+    assert np.abs(np.frombuffer(audio.data, dtype=np.int16)).max() > 1000
+    heard = await _transcribe(audio)
+    assert jiwer.cer("YOUR TABLE IS BOOKED SEE YOU AT SEVEN", heard) <= MAX_CER, heard

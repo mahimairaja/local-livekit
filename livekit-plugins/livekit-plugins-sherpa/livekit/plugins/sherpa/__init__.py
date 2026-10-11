@@ -3,11 +3,21 @@
 from livekit.agents import Plugin
 
 from .log import logger
-from .models import STT_MODELS, STTModels, TransducerModel, download_model
+from .models import STT_MODELS, TTS_MODELS, KokoroVoice, STTModels, TTSModels, download_model
 from .stt import STT, SpeechStream
+from .tts import TTS, ChunkedStream
 from .version import __version__
 
-__all__ = ["STT", "STTModels", "SpeechStream", "TransducerModel", "__version__"]
+__all__ = [
+    "STT",
+    "TTS",
+    "ChunkedStream",
+    "KokoroVoice",
+    "STTModels",
+    "SpeechStream",
+    "TTSModels",
+    "__version__",
+]
 
 
 class SherpaPlugin(Plugin):
@@ -15,7 +25,7 @@ class SherpaPlugin(Plugin):
         super().__init__(__name__, __version__, __package__, logger)
 
     def download_files(self) -> None:
-        for model in STT_MODELS.values():
+        for model in [*STT_MODELS.values(), *TTS_MODELS.values()]:
             download_model(model)
 
 

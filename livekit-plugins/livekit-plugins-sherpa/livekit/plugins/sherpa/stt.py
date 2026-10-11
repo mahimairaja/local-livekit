@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 import numpy as np
@@ -22,7 +23,7 @@ from livekit.agents import (
 from livekit.agents.types import TimedString
 from livekit.agents.utils import AudioBuffer, is_given
 
-from .models import STT_MODELS, STTModels, TransducerModel, resolve_model_file
+from .models import STT_MODELS, STTModels, TransducerModel, local_model_dir
 
 SAMPLE_RATE = 16000
 # Silence appended when an utterance is forced to end, so the model can emit its last tokens.
@@ -260,11 +261,12 @@ class SpeechStream(stt.RecognizeStream):
 def _load_transducer(
     spec: TransducerModel, *, num_threads: int, endpoint_silence: float
 ) -> OnlineRecognizer:
+    root = Path(local_model_dir(spec))
     recognizer: OnlineRecognizer = sherpa_onnx.OnlineRecognizer.from_transducer(
-        tokens=resolve_model_file(spec, spec.tokens),
-        encoder=resolve_model_file(spec, spec.encoder),
-        decoder=resolve_model_file(spec, spec.decoder),
-        joiner=resolve_model_file(spec, spec.joiner),
+        tokens=str(root / spec.tokens),
+        encoder=str(root / spec.encoder),
+        decoder=str(root / spec.decoder),
+        joiner=str(root / spec.joiner),
         num_threads=num_threads,
         sample_rate=SAMPLE_RATE,
         enable_endpoint_detection=True,

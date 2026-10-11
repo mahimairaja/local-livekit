@@ -18,6 +18,10 @@ from livekit.agents import stt
 from livekit.plugins import sherpa
 from livekit.plugins.sherpa.stt import SAMPLE_RATE, TAIL_PADDING_S, OnlineResult, OnlineStream
 
+# RecognizeStream adds the wall-clock time its task took to start to start_time_offset.
+CLOCK = pytest.approx
+TOL = 1e-3
+
 SOS = stt.SpeechEventType.START_OF_SPEECH
 INTERIM = stt.SpeechEventType.INTERIM_TRANSCRIPT
 FINAL = stt.SpeechEventType.FINAL_TRANSCRIPT
@@ -168,11 +172,10 @@ async def test_words_are_grouped_from_bpe_tokens_on_the_session_clock() -> None:
     data = next(ev for ev in events if ev.type == FINAL).alternatives[0]
     assert data.words is not None
     assert data.words == ["HELLO", "WORLD"]
-    assert [(w.start_time, w.end_time) for w in data.words] == pytest.approx(
-        [(12.1, 12.5), (12.5, 12.5)]
-    )
-    assert (data.start_time, data.end_time) == pytest.approx((12.1, 12.5))
-    assert all(w.start_time_offset == 10.0 for w in data.words)
+    assert [w.start_time for w in data.words] == CLOCK([12.1, 12.5], abs=TOL)
+    assert [w.end_time for w in data.words] == CLOCK([12.5, 12.5], abs=TOL)
+    assert (data.start_time, data.end_time) == CLOCK((12.1, 12.5), abs=TOL)
+    assert [w.start_time_offset for w in data.words] == CLOCK([10.0, 10.0], abs=TOL)
 
 
 async def test_flush_padding_does_not_shift_later_timestamps() -> None:
@@ -193,4 +196,4 @@ async def test_flush_padding_does_not_shift_later_timestamps() -> None:
 
     finals = [ev for ev in events if ev.type == FINAL]
     assert [ev.alternatives[0].text for ev in finals] == ["first", "second"]
-    assert finals[1].alternatives[0].start_time == pytest.approx(1.0)
+    assert finals[1].alternatives[0].start_time == CLOCK(1.0, abs=TOL)
