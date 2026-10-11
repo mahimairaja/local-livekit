@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "livekit-plugins-sherpa"
+dynamic = ["version"]
+description = "Offline STT and TTS for LiveKit Agents, powered by sherpa-onnx"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+authors = [{ name = "Mahimai Raja", email = "mahimairaja3@gmail.com" }]
+keywords = ["voice", "ai", "realtime", "audio", "livekit", "stt", "tts", "offline", "onnx"]
+dependencies = [
+    "livekit-agents==1.8.6",
+    "sherpa-onnx==1.13.8",
+    # The sherpa-onnx wheels do not declare this dependency; it ships libonnxruntime.
+    "sherpa-onnx-core==1.13.8",
+    "huggingface-hub==2.2.0",
+    "numpy==2.5.4",
+]
+
+[tool.hatch.version]
+path = "livekit/plugins/sherpa/version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["livekit"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/livekit"]

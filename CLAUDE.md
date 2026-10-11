@@ -4,7 +4,7 @@ LiveKit Agents running fully offline. Showcase for local STT, TTS, LLM and noise
 
 ## Layout
 
-- `livekit-plugins/livekit-plugins-<name>/`: one uv workspace member per plugin, laid out like `livekit/agents/livekit-plugins/*` (own `pyproject.toml`, namespace package `livekit/plugins/<name>/`, own `tests/`).
+- `livekit-plugins/livekit-plugins-<name>/`: one uv workspace member per plugin, laid out like `livekit/agents/livekit-plugins/*` (own `pyproject.toml`, namespace package `livekit/plugins/<name>/`, own `tests/`). A new plugin also needs an entry in root `[tool.uv.sources]` and `[tool.mypy] mypy_path`.
 - `main.py`: one agent that wires every plugin together.
 - Frontend/backend come later (agent-starter-react + livekit-api token helpers). Keep root free for `frontend/` and `backend/`.
 
