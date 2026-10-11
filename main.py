@@ -27,6 +27,7 @@ from livekit.plugins import hf, rnnoise, sherpa
 # The smallest models that hold a conversation: this repo shows the pipeline running, not
 # answer quality. Swap in e.g. Qwen/Qwen2.5-0.5B-Instruct for better replies.
 LLM_MODEL = os.environ.get("LLM_MODEL", "HuggingFaceTB/SmolLM2-135M-Instruct")
+# Keep in sync with the LIVEKIT_HF_MODELS pin in README.md (download-files).
 LLM_REVISION = os.environ.get("LLM_REVISION", "12fd25f77366fa6b3b4b768ec3050bf629380bac")
 
 INSTRUCTIONS = (

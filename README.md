@@ -18,7 +18,8 @@ The plugins are laid out like `livekit/agents/livekit-plugins/*`, so each one ca
 
 ```sh
 uv sync
-LIVEKIT_HF_MODELS=HuggingFaceTB/SmolLM2-135M-Instruct uv run -m livekit.agents download-files  # once, online
+LIVEKIT_HF_MODELS=HuggingFaceTB/SmolLM2-135M-Instruct@12fd25f77366fa6b3b4b768ec3050bf629380bac \
+  uv run -m livekit.agents download-files   # once, online; the revision matches main.py
 uv run python main.py console   # talk through your mic and speakers
 ```
 

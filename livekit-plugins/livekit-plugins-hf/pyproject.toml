@@ -9,7 +9,7 @@ description = "Run Hugging Face chat models locally in LiveKit Agents"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
-# From livekit/agents#7731 (Mahimai Raja), vendored at commit 42001a7.
+# From livekit/agents#7731 (Mahimai Raja). Source commit and update steps: README.md.
 authors = [{ name = "Mahimai Raja", email = "mahimairaja3@gmail.com" }]
 keywords = ["voice", "ai", "realtime", "livekit", "llm", "huggingface", "transformers", "offline"]
 dependencies = [

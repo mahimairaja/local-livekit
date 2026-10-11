@@ -122,9 +122,18 @@ def test_parser_emits_brace_reply_that_is_not_a_tool_call() -> None:
 
 def test_models_to_download(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("LIVEKIT_HF_MODELS", raising=False)
-    assert models_to_download("default/model") == ["default/model"]
+    assert models_to_download("default/model") == [("default/model", None)]
     monkeypatch.setenv("LIVEKIT_HF_MODELS", " a/b, c/d ,")
-    assert models_to_download("default/model") == ["a/b", "c/d"]
+    assert models_to_download("default/model") == [("a/b", None), ("c/d", None)]
+    monkeypatch.setenv("LIVEKIT_HF_MODELS", "a/b@abc123")
+    assert models_to_download("default/model") == [("a/b", "abc123")]
+    monkeypatch.setenv("LIVEKIT_HF_MODELS", "a/b@v1.0, c/d, ./local@dir, e/f@")
+    assert models_to_download("default/model") == [
+        ("a/b", "v1.0"),
+        ("c/d", None),
+        ("./local@dir", None),
+        ("e/f@", None),
+    ]
 
 
 def test_chat_template_messages_use_dict_arguments() -> None:
@@ -436,7 +445,7 @@ def test_loading_one_model_does_not_block_another(monkeypatch: pytest.MonkeyPatc
         hf_llm._models.pop(slow._opts.key, None)
 
 
-async def test_duplicate_and_parallel_tool_calls(fake_model: Any) -> None:
+async def test_parallel_tool_calls_false_keeps_first(fake_model: Any) -> None:
     call = '<tool_call>{"name": "get_weather", "arguments": {"city": "Paris"}}</tool_call>'
     other = '<tool_call>{"name": "get_time", "arguments": {}}</tool_call>'
 
@@ -452,5 +461,5 @@ async def test_duplicate_and_parallel_tool_calls(fake_model: Any) -> None:
             tc.name for c in chunks if c.delta and c.delta.tool_calls for tc in c.delta.tool_calls
         ]
 
-    assert await _names() == ["get_weather", "get_time"]
+    assert await _names() == ["get_weather", "get_weather", "get_time"]
     assert await _names(parallel_tool_calls=False) == ["get_weather"]

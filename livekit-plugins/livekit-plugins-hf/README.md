@@ -1,6 +1,16 @@
 # Hugging Face plugin for LiveKit Agents
 
-Vendored from [livekit/agents#7731](https://github.com/livekit/agents/pull/7731) at commit `42001a7`, unchanged apart from pinned dependencies, while that PR is in review.
+Vendored from [livekit/agents#7731](https://github.com/livekit/agents/pull/7731) while that PR is in review, unchanged apart from pinned dependencies.
+
+Source commit: `3bcc717014a2410a32c2ad355bafa8c6ad47e229`. To update, set `SHA` to the PR's new head and run from the repo root:
+
+```sh
+P=livekit-plugins/livekit-plugins-hf
+for f in __init__.py download.py llm.py tool_parser.py log.py version.py; do
+  gh api -H "Accept: application/vnd.github.raw" "repos/livekit/agents/contents/$P/livekit/plugins/hf/$f?ref=$SHA" > $P/livekit/plugins/hf/$f
+done
+gh api -H "Accept: application/vnd.github.raw" "repos/livekit/agents/contents/tests/test_plugin_hf_llm.py?ref=$SHA" > $P/tests/test_hf_llm.py
+```
 
 Run open chat models from the [Hugging Face Hub](https://huggingface.co/models) locally with
 `transformers`, with no API key or hosted inference service.
@@ -42,6 +52,8 @@ python my_agent.py download-files
 # or choose the models to fetch
 LIVEKIT_HF_MODELS="Qwen/Qwen2.5-7B-Instruct" python my_agent.py download-files
 ```
+
+Pin a revision with `LIVEKIT_HF_MODELS="Qwen/Qwen2.5-7B-Instruct@<commit>"`, matching `LLM(revision=...)`.
 
 You can also call `hf.download_model("Qwen/Qwen2.5-7B-Instruct")` from a build script.
 Gated models (such as Llama) need `HF_TOKEN` set while downloading. Pass
