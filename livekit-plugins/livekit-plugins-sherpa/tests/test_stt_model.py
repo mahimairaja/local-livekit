@@ -17,7 +17,7 @@ from huggingface_hub import hf_hub_download
 from livekit import rtc
 from livekit.agents import stt, utils
 from livekit.plugins import sherpa
-from livekit.plugins.sherpa.models import STT_MODELS, STTModels, TransducerModel, download_model
+from livekit.plugins.sherpa.models import STT_MODELS, STTModels, download_model
 
 # Input as it arrives from a LiveKit room: 48 kHz, 10 ms frames. The plugin resamples to 16 kHz.
 ROOM_RATE = 48000
@@ -51,7 +51,7 @@ def _close(expected: str, heard: str) -> bool:
 
 
 def _clip(name: str) -> rtc.AudioFrame:
-    model: TransducerModel = STT_MODELS[MODEL]
+    model = STT_MODELS[MODEL]
     path = hf_hub_download(model.repo_id, f"test_wavs/{name}", revision=model.revision)
     with wave.open(path) as w:
         pcm = w.readframes(w.getnframes())
