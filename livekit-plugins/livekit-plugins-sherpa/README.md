@@ -4,12 +4,20 @@ Offline speech-to-text and text-to-speech for [LiveKit Agents](https://github.co
 
 ## STT
 
-A true streaming recognizer (zipformer transducer, about 70M parameters). It emits interim transcripts while the user speaks and a final transcript with word timings once they pause.
+`sherpa.STT` runs a sherpa-onnx recognizer, and the model decides how it runs:
+
+- **Online models** (zipformer and other transducer, paraformer and CTC models) stream: interim transcripts while the user speaks, a final transcript with word timings once they pause. The final transcript always precedes `END_OF_SPEECH` for the same utterance. Capabilities: `streaming=True`, `interim_results=True`, `aligned_transcript="word"`.
+- **Offline models** (Whisper, Moonshine, SenseVoice, Parakeet, ...) transcribe a whole utterance at once. Capabilities: `streaming=False`. `AgentSession` runs them live by wrapping them in `stt.StreamAdapter` with the session's VAD (a local Silero VAD by default). No interim transcripts or word timings.
 
 ```python
 from livekit.plugins import sherpa
 
-session = AgentSession(stt=sherpa.STT(), ...)
+session = AgentSession(stt=sherpa.STT(), ...)  # streaming zipformer
+session = AgentSession(stt=sherpa.STT(model="moonshine-tiny-en-int8"), ...)  # batch
+
+# any other sherpa-onnx model, online or offline
+recognizer = sherpa_onnx.OfflineRecognizer.from_sense_voice(model=..., tokens=...)
+session = AgentSession(stt=sherpa.STT(recognizer=recognizer), ...)
 ```
 
 Fetch models once while online. `download-files` fetches the defaults (the streaming STT and Kokoro); list others by name in `LIVEKIT_SHERPA_MODELS`:
@@ -19,37 +27,23 @@ uv run -m livekit.agents download-files
 LIVEKIT_SHERPA_MODELS=moonshine-tiny-en-int8,kitten-nano-en-v0_2 uv run -m livekit.agents download-files
 ```
 
+| Built-in model | Kind | Size |
+| --- | --- | --- |
+| `zipformer-en-2023-06-26` (default) | online | ~70M, 80 MB int8 |
+| `zipformer-en-20M-2023-02-17` | online | ~20M, 42 MB int8; drops the first words of an utterance on 48 kHz room audio |
+| `moonshine-tiny-en-int8` | offline | ~27M, 120 MB |
+| `whisper-tiny.en-int8` | offline | ~39M, 100 MB |
+
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `model` | `zipformer-en-2023-06-26` | Built-in model, pinned to a Hugging Face commit. `zipformer-en-20M-2023-02-17` is smaller but drops the first words of an utterance on 48 kHz room audio |
-| `endpoint_silence` | `0.5` | Seconds of trailing silence that end an utterance |
+| `model` | `zipformer-en-2023-06-26` | Built-in model, pinned to a Hugging Face commit |
+| `endpoint_silence` | `0.5` | Online models: seconds of trailing silence that end an utterance |
 | `num_threads` | `2` | ONNX Runtime threads |
-| `recognizer` | `None` | Bring any `sherpa_onnx.OnlineRecognizer` (endpoint detection enabled) |
-
-Capabilities: `streaming=True`, `interim_results=True`, `aligned_transcript="word"`. The final transcript is always emitted before `END_OF_SPEECH` for the same utterance.
+| `recognizer` | `None` | Any `sherpa_onnx.OnlineRecognizer` (endpoint detection enabled) or `sherpa_onnx.OfflineRecognizer` |
 
 Word timings come from sherpa-onnx token onsets. A word ends where the next one starts.
 
-The default model is wideband English. It does not transcribe 8 kHz telephone audio. Use an 8 kHz model through `recognizer=` for SIP.
-
-## Batch STT (Whisper, Moonshine, SenseVoice, Parakeet, ...)
-
-`sherpa.BatchSTT` wraps a sherpa-onnx offline recognizer: it transcribes a whole utterance at once. `AgentSession` makes it live on its own, by wrapping it in `stt.StreamAdapter` with the session's VAD (a local Silero VAD by default) and transcribing each detected utterance.
-
-```python
-session = AgentSession(stt=sherpa.BatchSTT(model="moonshine-tiny-en-int8"), ...)
-
-# any other sherpa-onnx offline model
-recognizer = sherpa_onnx.OfflineRecognizer.from_sense_voice(model=..., tokens=...)
-session = AgentSession(stt=sherpa.BatchSTT(recognizer=recognizer), ...)
-```
-
-| Built-in model | Size | |
-| --- | --- | --- |
-| `moonshine-tiny-en-int8` (default) | ~27M, 120 MB | Moonshine tiny, English |
-| `whisper-tiny.en-int8` | ~39M, 100 MB | Whisper tiny.en |
-
-Capabilities: `streaming=False`, `interim_results=False`. No interim transcripts or word timings: the transcript arrives once the VAD ends the utterance.
+The built-in models are wideband English. They do not transcribe 8 kHz telephone audio. Use an 8 kHz model through `recognizer=` for SIP.
 
 ## TTS
 

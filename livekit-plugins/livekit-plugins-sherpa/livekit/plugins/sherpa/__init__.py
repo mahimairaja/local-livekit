@@ -1,16 +1,19 @@
-"""Offline STT and TTS for LiveKit Agents, powered by sherpa-onnx."""
+"""Local speech-to-text and text-to-speech for LiveKit Agents, powered by sherpa-onnx.
+
+`STT` runs any sherpa-onnx recognizer. Online models (zipformer and other transducer,
+paraformer and CTC models) stream; offline models (Whisper, Moonshine, SenseVoice, Parakeet
+and others) transcribe whole utterances. `TTS` speaks with Kokoro, Kitten, Piper/VITS and
+other sherpa-onnx voices. All run on ONNX Runtime, in process.
+"""
 
 import os
 
 from livekit.agents import Plugin
 
-from .batch_stt import BatchSTT
 from .log import logger
 from .models import (
-    BATCH_STT_MODELS,
     STT_MODELS,
     TTS_MODELS,
-    BatchSTTModels,
     HubModel,
     KokoroVoice,
     STTModels,
@@ -24,8 +27,6 @@ from .version import __version__
 __all__ = [
     "STT",
     "TTS",
-    "BatchSTT",
-    "BatchSTTModels",
     "ChunkedStream",
     "KokoroVoice",
     "STTModels",
@@ -40,12 +41,10 @@ DEFAULT_MODELS = ("zipformer-en-2023-06-26", "kokoro-int8-multi-lang-v1_0")
 
 
 def models_to_download() -> list[HubModel]:
-    """Built-in models fetched by `download-files`: the defaults, or `LIVEKIT_SHERPA_MODELS`
-    (comma separated names, e.g. "moonshine-tiny-en-int8,kitten-nano-en-v0_2")."""
+    """Built-in models fetched by `download-files`: the default streaming STT and Kokoro, or
+    the comma separated names in `LIVEKIT_SHERPA_MODELS` (e.g. "kitten-nano-en-v0_2")."""
     registry: dict[str, HubModel] = {
-        name: spec
-        for table in (STT_MODELS, BATCH_STT_MODELS, TTS_MODELS)
-        for name, spec in table.items()
+        name: spec for table in (STT_MODELS, TTS_MODELS) for name, spec in table.items()
     }
     names = [n.strip() for n in os.environ.get(MODELS_ENV_VAR, "").split(",") if n.strip()]
     unknown = [n for n in names if n not in registry]

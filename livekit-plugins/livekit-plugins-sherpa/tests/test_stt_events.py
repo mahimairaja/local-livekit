@@ -7,7 +7,7 @@ model "hears". The LiveKit side (RecognizeStream, channels, event types) is the 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import numpy.typing as npt
@@ -16,7 +16,14 @@ import pytest
 from livekit import rtc
 from livekit.agents import stt
 from livekit.plugins import sherpa
-from livekit.plugins.sherpa.stt import SAMPLE_RATE, TAIL_PADDING_S, OnlineResult, OnlineStream
+from livekit.plugins.sherpa.stt import (
+    SAMPLE_RATE,
+    TAIL_PADDING_S,
+    OfflineResult,
+    OfflineStream,
+    OnlineResult,
+    OnlineStream,
+)
 
 # RecognizeStream adds the wall-clock time its task took to start to start_time_offset.
 CLOCK = pytest.approx
@@ -197,3 +204,69 @@ async def test_flush_padding_does_not_shift_later_timestamps() -> None:
     finals = [ev for ev in events if ev.type == FINAL]
     assert [ev.alternatives[0].text for ev in finals] == ["first", "second"]
     assert finals[1].alternatives[0].start_time == CLOCK(1.0, abs=TOL)
+
+
+@dataclass
+class _OfflineResult:
+    text: str
+
+
+@dataclass
+class _OfflineStream:
+    samples: int = 0
+    rates: list[int] = field(default_factory=list)
+
+    def accept_waveform(self, sample_rate: int, waveform: npt.NDArray[np.float32]) -> None:
+        self.samples += len(waveform)
+        self.rates.append(sample_rate)
+
+    @property
+    def result(self) -> OfflineResult:
+        return _OfflineResult(f"  heard {self.samples} samples  ")
+
+
+class ScriptedOfflineRecognizer:
+    def __init__(self) -> None:
+        self.streams: list[_OfflineStream] = []
+
+    def create_stream(self) -> OfflineStream:
+        s = _OfflineStream()
+        self.streams.append(s)
+        return s
+
+    def decode_stream(self, s: OfflineStream) -> None:
+        pass
+
+
+def test_an_online_recognizer_streams() -> None:
+    engine = sherpa.STT(recognizer=ScriptedRecognizer([]))
+
+    assert engine.capabilities.streaming
+    assert engine.capabilities.interim_results
+    assert engine.capabilities.aligned_transcript == "word"
+
+
+def test_an_offline_recognizer_is_batch_only() -> None:
+    engine = sherpa.STT(recognizer=ScriptedOfflineRecognizer())
+
+    assert not engine.capabilities.streaming
+    assert engine.capabilities.offline_recognize
+    assert engine.model == "custom"
+    assert engine.provider == "sherpa-onnx"
+    with pytest.raises(NotImplementedError, match="StreamAdapter"):
+        engine.stream()
+
+
+async def test_offline_recognize_resamples_room_audio_and_returns_one_final() -> None:
+    recognizer = ScriptedOfflineRecognizer()
+    engine = sherpa.STT(recognizer=recognizer, language="en")
+    n = 48000  # one second of 48 kHz room audio
+    frame = rtc.AudioFrame(b"\x00\x01" * n, 48000, 1, n)
+
+    event = await engine.recognize([frame])
+
+    assert event.type == FINAL
+    assert recognizer.streams[0].rates == [SAMPLE_RATE]
+    assert abs(recognizer.streams[0].samples - SAMPLE_RATE) < SAMPLE_RATE * 0.02
+    assert event.alternatives[0].text == f"heard {recognizer.streams[0].samples} samples"
+    assert event.alternatives[0].end_time == pytest.approx(1.0, abs=0.02)

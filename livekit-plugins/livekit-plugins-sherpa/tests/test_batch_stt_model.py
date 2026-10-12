@@ -1,4 +1,4 @@
-"""BatchSTT against real sherpa-onnx offline models (Moonshine, Whisper).
+"""sherpa.STT in batch mode: real sherpa-onnx offline models (Moonshine, Whisper).
 
 Needs the model files once (downloaded on first run); skipped when offline without them.
 """
@@ -16,7 +16,6 @@ from livekit import rtc
 from livekit.agents import inference, stt, utils
 from livekit.plugins import sherpa
 from livekit.plugins.sherpa.models import (
-    BATCH_STT_MODELS,
     STT_MODELS,
     TTS_MODELS,
     download_model,
@@ -44,23 +43,26 @@ def _clip() -> rtc.AudioFrame:
         )
 
 
-@pytest.fixture(scope="module", params=list(BATCH_STT_MODELS))
-def engine(request: pytest.FixtureRequest) -> sherpa.BatchSTT:
-    name: sherpa.BatchSTTModels = request.param
+BATCH_MODELS: list[sherpa.STTModels] = ["moonshine-tiny-en-int8", "whisper-tiny.en-int8"]
+
+
+@pytest.fixture(scope="module", params=BATCH_MODELS)
+def engine(request: pytest.FixtureRequest) -> sherpa.STT:
+    name: sherpa.STTModels = request.param
     try:
-        download_model(BATCH_STT_MODELS[name])
+        download_model(STT_MODELS[name])
         download_model(CLIP)
     except Exception as e:
         pytest.skip(f"model not available: {e}")
-    return sherpa.BatchSTT(model=name)
+    return sherpa.STT(model=name)
 
 
-def test_declares_batch_only(engine: sherpa.BatchSTT) -> None:
+def test_declares_batch_only(engine: sherpa.STT) -> None:
     assert not engine.capabilities.streaming
     assert engine.capabilities.offline_recognize
 
 
-async def test_transcribes_a_real_recording(engine: sherpa.BatchSTT) -> None:
+async def test_transcribes_a_real_recording(engine: sherpa.STT) -> None:
     event = await engine.recognize([_clip()])
 
     assert event.type == stt.SpeechEventType.FINAL_TRANSCRIPT
@@ -68,7 +70,7 @@ async def test_transcribes_a_real_recording(engine: sherpa.BatchSTT) -> None:
     assert jiwer.cer(CLIP_TEXT, heard) <= MAX_CER, heard
 
 
-async def test_transcribes_kokoro(engine: sherpa.BatchSTT) -> None:
+async def test_transcribes_kokoro(engine: sherpa.STT) -> None:
     try:
         download_model(TTS_MODELS["kokoro-int8-multi-lang-v1_0"])
     except Exception as e:
@@ -81,7 +83,7 @@ async def test_transcribes_kokoro(engine: sherpa.BatchSTT) -> None:
     assert jiwer.cer("THE WEATHER IN TORONTO IS SUNNY TODAY", heard) <= 0.2, heard
 
 
-async def test_live_audio_through_stream_adapter_and_vad(engine: sherpa.BatchSTT) -> None:
+async def test_live_audio_through_stream_adapter_and_vad(engine: sherpa.STT) -> None:
     # What AgentSession does with a batch STT: the VAD cuts utterances, the STT transcribes each.
     adapter = stt.StreamAdapter(stt=engine, vad=inference.VAD(model="silero"))
     stream = adapter.stream()
