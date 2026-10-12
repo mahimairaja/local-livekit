@@ -8,12 +8,16 @@ from __future__ import annotations
 import asyncio
 import threading
 from dataclasses import dataclass, field
+from typing import get_args
 
 import numpy as np
 import numpy.typing as npt
+import pytest
 
 from livekit.plugins import sherpa
 from livekit.plugins.sherpa.tts import ChunkCallback
+
+KOKORO = get_args(sherpa.KokoroVoice)
 
 RATE = 24000
 
@@ -69,7 +73,7 @@ async def test_audio_arrives_in_order_as_one_utterance() -> None:
 
 async def test_voice_and_speed_reach_the_engine() -> None:
     engine = ScriptedEngine([_tone(0.1, 0.0)])
-    voice = sherpa.TTS(engine=engine, voice="bm_george", speed=1.2)
+    voice = sherpa.TTS(engine=engine, speakers=KOKORO, voice="bm_george", speed=1.2)
 
     await voice.synthesize("Hi.").collect()
     voice.update_options(voice="af_heart", speed=0.9)
@@ -103,3 +107,18 @@ async def test_interruption_stops_the_engine() -> None:
         await asyncio.sleep(0.01)
     assert engine.stopped_early
     assert len(engine.calls) == 1
+
+
+async def test_a_speaker_id_works_without_a_speaker_table() -> None:
+    # Piper, Matcha or any custom engine: no names known, ids still select the voice.
+    engine = ScriptedEngine([_tone(0.1, 0.0)])
+    await sherpa.TTS(engine=engine, voice=5).synthesize("Hi.").collect()
+
+    assert engine.calls == [("Hi.", 5, 1.0)]
+
+
+def test_unknown_voice_names_the_choices() -> None:
+    with pytest.raises(ValueError, match="expr-voice-2-m"):
+        sherpa.TTS(engine=ScriptedEngine([]), speakers=["expr-voice-2-m"], voice="af_heart")
+    with pytest.raises(ValueError, match="speaker id"):
+        sherpa.TTS(engine=ScriptedEngine([]), voice="af_heart")

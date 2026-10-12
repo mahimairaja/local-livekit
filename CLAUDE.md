@@ -22,7 +22,7 @@ LiveKit Agents running fully offline. Showcase for local STT, TTS, LLM and noise
 4. Full typing. `mypy --strict` must pass. No `# type: ignore` without a reason on the same line.
 5. Tests prove behaviour, not coverage. Use the framework's own test tools: `AgentSession` + `RunResult` assertions, fake STT/TTS in the style of upstream `tests/fake_stt.py`, pytest-asyncio.
 6. No em dashes in code, docs or commits.
-7. Never comment on or open issues/PRs in livekit/agents from this repo's work.
+7. Open issues or PRs on livekit/agents only when Mahimai asks, and show the draft first.
 
 ## Commands
 

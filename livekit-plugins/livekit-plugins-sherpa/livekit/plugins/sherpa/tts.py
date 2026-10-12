@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Protocol, get_args
+from typing import Protocol
 
 import numpy as np
 import numpy.typing as npt
@@ -19,11 +19,19 @@ from livekit.agents import (
     tts,
     utils,
 )
+from livekit.agents.types import NotGiven
 from livekit.agents.utils import is_given
 
-from .models import TTS_MODELS, KokoroModel, KokoroVoice, TTSModels, local_model_dir
-
-VOICES: tuple[KokoroVoice, ...] = get_args(KokoroVoice)
+from .models import (
+    TTS_MODELS,
+    KittenModel,
+    KokoroModel,
+    KokoroVoice,
+    TTSModel,
+    TTSModels,
+    VitsModel,
+    local_model_dir,
+)
 
 ChunkCallback = Callable[[npt.NDArray[np.float32], float], int]
 
@@ -43,9 +51,13 @@ class OfflineTts(Protocol):
     ) -> GeneratedAudio: ...
 
 
+Voice = KokoroVoice | str | int
+"""A speaker name from the model's table (Kokoro names are typed) or a speaker id."""
+
+
 @dataclass
 class _TTSOptions:
-    voice: KokoroVoice
+    sid: int
     speed: float
 
 
@@ -53,33 +65,42 @@ class TTS(tts.TTS):
     def __init__(
         self,
         *,
-        voice: KokoroVoice = "af_heart",
+        voice: Voice | None = None,
         speed: float = 1.0,
         model: TTSModels = "kokoro-int8-multi-lang-v1_0",
         num_threads: int = 2,
         engine: OfflineTts | None = None,
+        speakers: Sequence[str] | None = None,
     ) -> None:
-        """Fully offline TTS with Kokoro, run by sherpa-onnx.
+        """Fully offline TTS run by sherpa-onnx: Kokoro by default, or Kitten, Piper/VITS
+        and any other sherpa-onnx TTS model through `engine=`.
 
         Non-streaming: the agent wraps it in `tts.StreamAdapter`, which splits the LLM output
         into sentences. Audio of a sentence is pushed as soon as sherpa-onnx produces it.
 
         Args:
-            voice: Kokoro voice. Fetch the model first with `download-files`.
+            voice: A speaker name from the model's table (e.g. "af_heart" for Kokoro,
+                "expr-voice-2-f" for Kitten) or a speaker id. Defaults to the model's default.
             speed: Speaking rate. Larger is faster.
-            model: Built-in model to load.
+            model: Built-in model to load. Fetch it first with `download-files`.
             num_threads: ONNX Runtime threads.
-            engine: Use an already built `sherpa_onnx.OfflineTts` (with the same voice table)
-                instead of `model`.
+            engine: Use an already built `sherpa_onnx.OfflineTts` instead of `model`.
+            speakers: The speaker names of `engine`, in speaker id order, so `voice` can be a
+                name. Without it, `voice` must be a speaker id.
         """
-        self._engine = engine or _load_kokoro(TTS_MODELS[model], num_threads=num_threads)
+        spec = TTS_MODELS[model]
+        self._speakers = tuple(speakers or ()) if engine is not None else spec.speakers
+        default = 0 if engine is not None else spec.default_voice
+        self._engine = engine or _load_engine(spec, num_threads=num_threads)
         super().__init__(
             capabilities=tts.TTSCapabilities(streaming=False),
             sample_rate=self._engine.sample_rate,
             num_channels=1,
         )
         self._model_name = model if engine is None else "custom"
-        self._opts = _TTSOptions(voice=voice, speed=speed)
+        self._opts = _TTSOptions(
+            sid=_speaker_id(voice if voice is not None else default, self._speakers), speed=speed
+        )
         # sherpa-onnx makes no promise that one engine can run two generations at once.
         self._lock = threading.Lock()
 
@@ -94,11 +115,11 @@ class TTS(tts.TTS):
     def update_options(
         self,
         *,
-        voice: NotGivenOr[KokoroVoice] = NOT_GIVEN,
+        voice: NotGivenOr[Voice] = NOT_GIVEN,
         speed: NotGivenOr[float] = NOT_GIVEN,
     ) -> None:
-        if is_given(voice):
-            self._opts.voice = voice
+        if not isinstance(voice, NotGiven):
+            self._opts.sid = _speaker_id(voice, self._speakers)
         if is_given(speed):
             self._opts.speed = speed
 
@@ -138,7 +159,7 @@ class ChunkedStream(tts.ChunkedStream):
                 with self._tts._lock:
                     self._tts._engine.generate(
                         self._input_text,
-                        sid=VOICES.index(self._opts.voice),
+                        sid=self._opts.sid,
                         speed=self._opts.speed,
                         callback=on_chunk,
                     )
@@ -157,23 +178,47 @@ class ChunkedStream(tts.ChunkedStream):
         output_emitter.flush()
 
 
-def _load_kokoro(spec: KokoroModel, *, num_threads: int) -> OfflineTts:
+def _speaker_id(voice: Voice, speakers: Sequence[str]) -> int:
+    if isinstance(voice, int):
+        if voice < 0 or (speakers and voice >= len(speakers)):
+            raise ValueError(f"speaker id {voice} is out of range for {len(speakers)} speakers")
+        return voice
+    if voice not in speakers:
+        known = ", ".join(speakers) if speakers else "none (pass speakers= or a speaker id)"
+        raise ValueError(f"unknown voice {voice!r}; this model has: {known}")
+    return speakers.index(voice)
+
+
+def _load_engine(spec: TTSModel, *, num_threads: int) -> OfflineTts:
     root = Path(local_model_dir(spec))
-    config = sherpa_onnx.OfflineTtsConfig(
-        model=sherpa_onnx.OfflineTtsModelConfig(
-            kokoro=sherpa_onnx.OfflineTtsKokoroModelConfig(
-                model=str(root / spec.model),
-                voices=str(root / spec.voices),
-                tokens=str(root / spec.tokens),
-                lexicon=str(root / spec.lexicon),
-                data_dir=str(root / spec.data_dir),
-                lang=spec.language,
-            ),
-            num_threads=num_threads,
-        ),
-        max_num_sentences=1,
+    model = sherpa_onnx.OfflineTtsModelConfig(num_threads=num_threads)
+    if isinstance(spec, KokoroModel):
+        model.kokoro = sherpa_onnx.OfflineTtsKokoroModelConfig(
+            model=str(root / spec.model),
+            voices=str(root / spec.voices),
+            tokens=str(root / spec.tokens),
+            lexicon=str(root / spec.lexicon),
+            data_dir=str(root / spec.data_dir),
+            lang=spec.language,
+        )
+    elif isinstance(spec, KittenModel):
+        model.kitten = sherpa_onnx.OfflineTtsKittenModelConfig(
+            model=str(root / spec.model),
+            voices=str(root / spec.voices),
+            tokens=str(root / spec.tokens),
+            data_dir=str(root / spec.data_dir),
+        )
+    elif isinstance(spec, VitsModel):
+        model.vits = sherpa_onnx.OfflineTtsVitsModelConfig(
+            model=str(root / spec.model),
+            tokens=str(root / spec.tokens),
+            data_dir=str(root / spec.data_dir),
+        )
+    else:
+        raise TypeError(f"unsupported TTS model spec: {type(spec).__name__}")
+    engine: OfflineTts = sherpa_onnx.OfflineTts(
+        sherpa_onnx.OfflineTtsConfig(model=model, max_num_sentences=1)
     )
-    engine: OfflineTts = sherpa_onnx.OfflineTts(config)
     return engine
 
 
