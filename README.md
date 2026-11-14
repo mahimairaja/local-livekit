@@ -43,6 +43,21 @@ Smallest models that work: the point is a loop that runs anywhere. Swap the LLM 
 
 `livekit-plugins-sherpa` is not tied to these models. It runs the sherpa-onnx family: STT (`sherpa.STT`), streaming with zipformer-style models or batch with Whisper, Moonshine, SenseVoice or Parakeet, and TTS such as Kokoro, Kitten or Piper (`sherpa.TTS`). Built in and tested: 2 streaming STT, 2 batch STT and 3 TTS models. See the [plugin README](livekit-plugins/livekit-plugins-sherpa/README.md).
 
+### Other languages: Hugging Face speech models
+
+sherpa-onnx has no model for most African languages. `livekit-plugins-hf` also runs speech models with `transformers`, so any Whisper fine-tune or Orpheus voice from the Hub can take over STT or TTS. For Luganda with [Sunbird](https://huggingface.co/Sunbird)'s models:
+
+```sh
+uv sync --extra orpheus   # SNAC codec for Orpheus voices
+LIVEKIT_HF_MODELS="HuggingFaceTB/SmolLM2-135M-Instruct@12fd25f77366fa6b3b4b768ec3050bf629380bac,Sunbird/SunflowerASR-51-african-languages,Sunbird/orpheus-3b-tts-multilingual" \
+  uv run -m livekit.agents download-files   # SunflowerASR is gated: accept its terms and set HF_TOKEN first
+STT_MODEL=Sunbird/SunflowerASR-51-african-languages STT_LANGUAGE=lug \
+TTS_MODEL=Sunbird/orpheus-3b-tts-multilingual TTS_VOICE=salt_lug_0001 \
+  uv run python main.py console
+```
+
+These are 3B-parameter models and want a GPU. Measured on an H100: SunflowerASR transcribes Swahili and English with no word errors and Luganda with one, in about 0.5 s; Orpheus starts speaking after about 1 s but generates 2 to 2.5 times slower than real time with plain `transformers`, so long replies stall. For a live voice, serve Orpheus with vLLM. Upstream PRs: [#8563](https://github.com/livekit/agents/pull/8563) (STT), [#8564](https://github.com/livekit/agents/pull/8564) (TTS).
+
 ## Measured
 
 On an M-series Mac mini, CPU only (no GPU), voice in and voice out:
@@ -87,11 +102,11 @@ uv run pre-commit run --all-files  # ruff, mypy --strict, uv lock --check
 lk agent debugger start main.py    # drive the agent turn by turn, text mode
 ```
 
-58 tests, including one where a spoken question has to come back as a spoken answer with no room and no network.
+102 tests, including one where a spoken question has to come back as a spoken answer with no room and no network.
 </details>
 
 ## Credits
 
 - `livekit-plugins-rnnoise`: [Apoorva Verma](https://github.com/apoorva-01), [livekit/agents#6477](https://github.com/livekit/agents/pull/6477).
-- `livekit-plugins-hf`: [livekit/agents#7731](https://github.com/livekit/agents/pull/7731).
+- `livekit-plugins-hf`: [livekit/agents#7731](https://github.com/livekit/agents/pull/7731) (LLM), [#8563](https://github.com/livekit/agents/pull/8563) (STT), [#8564](https://github.com/livekit/agents/pull/8564) (TTS) and [#8565](https://github.com/livekit/agents/pull/8565) (hosted).
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) by k2-fsa, [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) and [misaki](https://github.com/hexgrad/misaki) by hexgrad, [SmolLM2](https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct) by Hugging Face, [RNNoise](https://github.com/xiph/rnnoise) by Xiph, and [LiveKit Agents](https://github.com/livekit/agents).

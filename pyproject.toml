@@ -12,6 +12,10 @@ dependencies = [
     "livekit-plugins-sherpa",
 ]
 
+[project.optional-dependencies]
+# SNAC codec for Orpheus voices in hf.TTS
+orpheus = ["livekit-plugins-hf[orpheus]"]
+
 [dependency-groups]
 dev = [
     "jiwer==4.0.0",
