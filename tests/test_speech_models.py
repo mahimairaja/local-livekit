@@ -15,6 +15,9 @@ def test_defaults_to_sherpa(monkeypatch: pytest.MonkeyPatch) -> None:
     built: list[tuple[str, dict[str, Any]]] = []
     monkeypatch.setattr(sherpa, "STT", lambda **kw: built.append(("stt", kw)))
     monkeypatch.setattr(sherpa, "TTS", lambda **kw: built.append(("tts", kw)))
+    # main reads the selectors from the environment at import, so clear them here
+    monkeypatch.setattr(main, "STT_MODEL", None)
+    monkeypatch.setattr(main, "TTS_MODEL", None)
 
     main.build_stt()
     main.build_tts()
