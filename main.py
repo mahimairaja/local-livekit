@@ -23,6 +23,8 @@ from livekit.agents import (
     cli,
     inference,
     room_io,
+    stt,
+    tts,
 )
 from livekit.agents.voice.io import AudioInput
 from livekit.plugins import hf, rnnoise, sherpa
@@ -32,6 +34,19 @@ from livekit.plugins import hf, rnnoise, sherpa
 LLM_MODEL = os.environ.get("LLM_MODEL", "HuggingFaceTB/SmolLM2-135M-Instruct")
 # Keep in sync with the LIVEKIT_HF_MODELS pin in README.md (download-files).
 LLM_REVISION = os.environ.get("LLM_REVISION", "12fd25f77366fa6b3b4b768ec3050bf629380bac")
+
+# Optional: run speech through a Hugging Face model instead of sherpa-onnx, for languages
+# sherpa has no model for. Both need a GPU to keep up, and their weights in the cache
+# (LIVEKIT_HF_MODELS=... download-files). For example, Sunbird's African-language models:
+#   STT_MODEL=Sunbird/SunflowerASR-51-african-languages STT_LANGUAGE=lug
+#   TTS_MODEL=Sunbird/orpheus-3b-tts-multilingual TTS_VOICE=salt_lug_0001
+STT_MODEL = os.environ.get("STT_MODEL")
+STT_LANGUAGE = os.environ.get("STT_LANGUAGE")
+TTS_MODEL = os.environ.get("TTS_MODEL")
+TTS_VOICE = os.environ.get("TTS_VOICE")
+
+# Whisper token ids for the languages SunflowerASR adds (from its model card).
+SUNFLOWER_LANGUAGE_TOKEN_IDS = {"lug": 50332, "swa": 50318, "kin": 50340, "eng": 50259}
 
 logger = logging.getLogger("local-agent")
 
@@ -55,17 +70,37 @@ def build_llm() -> hf.LLM:
     return hf.LLM(model=LLM_MODEL, revision=LLM_REVISION, max_new_tokens=80, device="cpu")
 
 
+def build_stt() -> stt.STT:
+    if STT_MODEL is None:
+        return sherpa.STT()
+    return hf.STT(
+        model=STT_MODEL,
+        language=STT_LANGUAGE,
+        language_token_ids=SUNFLOWER_LANGUAGE_TOKEN_IDS if "Sunflower" in STT_MODEL else None,
+    )
+
+
+def build_tts() -> tts.TTS:
+    if TTS_MODEL is None:
+        return sherpa.TTS(voice="af_heart")
+    return hf.TTS(model=TTS_MODEL, voice=TTS_VOICE)
+
+
 @dataclass
 class Models:
-    stt: sherpa.STT
-    tts: sherpa.TTS
+    stt: stt.STT
+    tts: tts.TTS
     llm: hf.LLM
 
 
 def load_models() -> Models:
     llm = build_llm()
     llm.load()
-    return Models(stt=sherpa.STT(), tts=sherpa.TTS(voice="af_heart"), llm=llm)
+    speech_to_text, text_to_speech = build_stt(), build_tts()
+    for model in (speech_to_text, text_to_speech):
+        if isinstance(model, hf.STT | hf.TTS):
+            model.load()
+    return Models(stt=speech_to_text, tts=text_to_speech, llm=llm)
 
 
 def prewarm(proc: JobProcess) -> None:
