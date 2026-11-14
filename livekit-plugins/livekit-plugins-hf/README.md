@@ -3,7 +3,7 @@
 Vendored while the upstream PRs are in review, unchanged apart from pinned dependencies and Python 3.12 lint fixes:
 
 - `hf.LLM`: [livekit/agents#7731](https://github.com/livekit/agents/pull/7731), source commit `3bcc717014a2410a32c2ad355bafa8c6ad47e229`.
-- `hf.STT`, `hf.TTS` and hosted mode: [#8563](https://github.com/livekit/agents/pull/8563), [#8564](https://github.com/livekit/agents/pull/8564) and [#8565](https://github.com/livekit/agents/pull/8565), copied from [mahimairaja/livekit-plugins](https://github.com/mahimairaja/livekit-plugins) commit `69822fa631bd1dfeb948dc8eb220142ac8c4ebe0`, which carries the Python 3.12 and huggingface-hub 2.x fixes.
+- `hf.STT`, `hf.TTS` and hosted mode: [#8563](https://github.com/livekit/agents/pull/8563), [#8564](https://github.com/livekit/agents/pull/8564) and [#8565](https://github.com/livekit/agents/pull/8565), copied from [mahimairaja/livekit-plugins](https://github.com/mahimairaja/livekit-plugins) commit `69822fa631bd1dfeb948dc8eb220142ac8c4ebe0`, which carries the Python 3.12 and huggingface-hub 2.x fixes, plus the STT review fixes that followed it (CTC models, caller generation config, Whisper over 30 s).
 
 To update the LLM files, set `SHA` to #7731's new head and run from the repo root:
 
