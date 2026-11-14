@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "livekit-plugins-hf"
 dynamic = ["version"]
-description = "Run Hugging Face chat models locally in LiveKit Agents"
+description = "Run Hugging Face chat, speech-to-text and text-to-speech models locally in LiveKit Agents"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
@@ -19,6 +19,9 @@ dependencies = [
     "torch==2.14.1",
     "accelerate==1.15.0",
 ]
+
+[project.optional-dependencies]
+orpheus = ["snac==1.2.1"]
 
 [tool.hatch.version]
 path = "livekit/plugins/hf/version.py"
